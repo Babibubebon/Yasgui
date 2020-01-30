@@ -5,7 +5,7 @@ import * as superagent from "superagent";
 import { take } from "lodash-es";
 const CodeMirror = require("codemirror");
 require("./show-hint.scss");
-export class CompleterConfig {
+export interface CompleterConfig {
   onInitialize?: (this: CompleterConfig, yasqe: Yasqe) => void; //allows for e.g. registering event listeners in yasqe, like the prefix autocompleter does
   isValidCompletionPosition: (yasqe: Yasqe) => boolean;
   get: (yasqe: Yasqe, token?: AutocompletionToken) => Promise<string[]> | string[];
@@ -26,7 +26,7 @@ export interface AutocompletionToken extends Token {
 }
 export class Completer extends EventEmitter {
   protected yasqe: Yasqe;
-  private trie: Trie;
+  private trie?: Trie;
   private config: CompleterConfig;
   private active: boolean = false;
   constructor(yasqe: Yasqe, config: CompleterConfig) {
@@ -51,7 +51,9 @@ export class Completer extends EventEmitter {
     if (!completions || !(completions instanceof Array)) return;
     // store array as trie
     this.trie = new Trie();
-    completions.forEach(c => this.trie.insert(c));
+    for (const c of completions) {
+      this.trie.insert(c)
+    }
 
     // store in localstorage as well
     var storageId = this.getStorageId();
@@ -103,7 +105,7 @@ export class Completer extends EventEmitter {
       } else {
         // if completions are defined in localstorage, use those! (calling the
         // function may come with overhead (e.g. async calls))
-        var completionsFromStorage: string[];
+        var completionsFromStorage: string[] | undefined;
         var storageId = this.getStorageId();
         if (storageId) completionsFromStorage = this.yasqe.storage.get<string[]>(storageId);
         if (completionsFromStorage && completionsFromStorage.length > 0) {
@@ -135,8 +137,8 @@ export class Completer extends EventEmitter {
     if (this.config.postProcessSuggestion) {
       suggestedString = this.config.postProcessSuggestion(this.yasqe, autocompletionToken, suggestedString);
     }
-    var from: Position;
-    var to: Position;
+    let from: Position | undefined;
+    let to: Position;
     if (autocompletionToken.from) {
       const cur = this.yasqe.getDoc().getCursor();
       from = { ...cur, ...autocompletionToken.from };
@@ -289,7 +291,7 @@ export function postprocessIriCompletion(_yasqe: Yasqe, token: AutocompletionTok
 }
 
 //Use protocol relative request when served via http[s]*. Otherwise (e.g. file://, fetch via http)
-export function fetchFromLov(yasqe: Yasqe, type: "class" | "property", token: AutocompletionToken): Promise<string[]> {
+export function fetchFromLov(yasqe: Yasqe, type: "class" | "property", token?: AutocompletionToken): Promise<string[]> {
   var reqProtocol = window.location.protocol.indexOf("http") === 0 ? "https://" : "http://";
   const notificationKey = "autocomplete_" + type;
   if (!token || !token.string || token.string.trim().length == 0) {
